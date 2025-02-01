@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestor de Tareas</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/1.6.2/axios.min.js"></script>
+    <style>
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+
+<body class="bg-gray-100">
+    <!-- Pantalla de Login -->
+    <div id="loginScreen" class="min-h-screen flex items-center justify-center p-4">
+        <div class="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
+            <div class="text-center mb-8">
+                <h2 class="text-2xl font-bold text-gray-800">Gestor de Tareas</h2>
+                <p class="text-gray-600 mt-1">Inicia sesión para continuar</p>
+            </div>
+
+            <button id="loginButton" class="w-full flex items-center justify-center gap-2 bg-white border border-gray-300 rounded-lg px-4 py-3 text-gray-700 font-semibold hover:bg-gray-50">
+                <svg class="w-5 h-5" viewBox="0 0 24 24">
+                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                </svg>
+                Continuar con Google
+            </button>
+
+            <div id="loginMessage" class="mt-4 text-center text-sm"></div>
+        </div>
+    </div>
+
+    <!-- Pantalla de Tareas -->
+    <div id="taskScreen" class="hidden">
+        <!-- Navbar -->
+        <nav class="bg-white shadow">
+            <div class="max-w-7xl mx-auto px-4 py-4">
+                <div class="flex justify-between items-center">
+                    <h1 class="text-xl font-semibold">Mis Tareas</h1>
+                    <div class="flex items-center gap-4">
+                        <span id="userEmail" class="text-gray-600"></span>
+                        <button id="logoutButton" class="text-gray-600 hover:text-gray-800">
+                            Cerrar sesión
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Contenido -->
+        <main class="max-w-7xl mx-auto p-4">
+            <!-- Formulario de nueva tarea -->
+            <div class="bg-white rounded-lg shadow p-6 mb-6">
+                <h2 class="text-lg font-semibold mb-4">Nueva Tarea</h2>
+                <form id="taskForm">
+                    <div class="mb-4">
+                        <label class="block text-gray-700 mb-2">Título</label>
+                        <input type="text" id="title" required class="w-full p-2 border rounded">
+                    </div>
+                    <div class="mb-4">
+                        <label class="block text-gray-700 mb-2">Descripción</label>
+                        <textarea id="description" class="w-full p-2 border rounded" rows="3"></textarea>
+                    </div>
+                    <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
+                        Crear Tarea
+                    </button>
+                </form>
+            </div>
+
+            <!-- Lista de tareas -->
+            <div class="bg-white rounded-lg shadow p-6">
+                <h2 class="text-lg font-semibold mb-4">Tareas</h2>
+                <div id="taskList"></div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        const API_URL = 'http://localhost:3000/api';
+        let token = localStorage.getItem('token');
+
+        // Elementos del DOM
+        const loginScreen = document.getElementById('loginScreen');
+        const taskScreen = document.getElementById('taskScreen');
+        const loginButton = document.getElementById('loginButton');
+        const loginMessage = document.getElementById('loginMessage');
+        const logoutButton = document.getElementById('logoutButton');
+        const taskForm = document.getElementById('taskForm');
+        const taskList = document.getElementById('taskList');
+        const userEmail = document.getElementById('userEmail');
+
+        // Inicialización
+        if (token) {
+            showTaskScreen();
+            loadTasks();
+        }
+
+        // Event Listeners
+        loginButton.addEventListener('click', async() => {
+            try {
+                loginMessage.textContent = 'Conectando...';
+                const response = await axios.get(`${API_URL}/login/google`);
+                window.location.href = response.data.url;
+            } catch (error) {
+                loginMessage.textContent = 'Error al conectar con el servidor';
+                console.error('Error:', error);
+            }
+        });
+
+        logoutButton.addEventListener('click', () => {
+            localStorage.removeItem('token');
+            showLoginScreen();
+        });
+
+        taskForm.addEventListener('submit', async(e) => {
+            e.preventDefault();
+            const title = document.getElementById('title').value;
+            const description = document.getElementById('description').value;
+
+            try {
+                await axios.post(
+                    `${API_URL}/tareas`, {
+                        titulo: title,
+                        descripcion: description
+                    }, {
+                        headers: {
+                            Authorization: `Bearer ${token}`
+                        }
+                    }
+                );
+                taskForm.reset();
+                loadTasks();
+            } catch (error) {
+                alert('Error al crear la tarea');
+                console.error('Error:', error);
+            }
+        });
+
+        // Verificar código de auth en la URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const code = urlParams.get('code');
+        if (code) {
+            handleAuthCallback(code);
+        }
+
+        async function handleAuthCallback(code) {
+            try {
+                loginMessage.textContent = 'Autenticando...';
+                const response = await axios.get(`${API_URL}/auth/callback?code=${code}`);
+                token = response.data.access_token;
+                localStorage.setItem('token', token);
+                window.history.replaceState({}, document.title, window.location.pathname);
+                showTaskScreen();
+                loadTasks();
+            } catch (error) {
+                loginMessage.textContent = 'Error en la autenticación';
+                console.error('Error:', error);
+            }
+        }
+
+        async function loadTasks() {
+            try {
+                const response = await axios.get(
+                    `${API_URL}/tareas`, {
+                        headers: {
+                            Authorization: `Bearer ${token}`
+                        }
+                    }
+                );
+                displayTasks(response.data);
+            } catch (error) {
+                console.error('Error:', error);
+                if (error.response && error.response.status === 401) {
+                    localStorage.removeItem('token');
+                    showLoginScreen();
+                }
+            }
+        }
+
+        async function deleteTask(id) {
+            try {
+                await axios.delete(
+                    `${API_URL}/tareas/${id}`, {
+                        headers: {
+                            Authorization: `Bearer ${token}`
+                        }
+                    }
+                );
+                loadTasks();
+            } catch (error) {
+                alert('Error al eliminar la tarea');
+                console.error('Error:', error);
+            }
+        }
+
+        function displayTasks(tasks) {
+            taskList.innerHTML = tasks.map(task => `
+                <div class="border-b p-4">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <h3 class="font-semibold">${task.titulo}</h3>
+                            <p class="text-gray-600 mt-1">${task.descripcion || 'Sin descripción'}</p>
+                            <p class="text-sm text-gray-500 mt-2">${new Date(task.fecha_creacion).toLocaleString()}</p>
+                        </div>
+                        <button 
+                            onclick="deleteTask(${task.id})"
+                            class="text-red-500 hover:text-red-700"
+                        >
+                            Eliminar
+                        </button>
+                    </div>
+                </div>
+            `).join('') || '<p class="text-gray-500">No hay tareas</p>';
+        }
+
+        async function getUserInfo() {
+            try {
+                const response = await axios.get(
+                    `${API_URL}/me`, {
+                        headers: {
+                            Authorization: `Bearer ${token}`
+                        }
+                    }
+                );
+                userEmail.textContent = response.data.email;
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        }
+
+        function showLoginScreen() {
+            loginScreen.classList.remove('hidden');
+            taskScreen.classList.add('hidden');
+            loginMessage.textContent = '';
+        }
+
+        function showTaskScreen() {
+            loginScreen.classList.add('hidden');
+            taskScreen.classList.remove('hidden');
+            getUserInfo();
+        }
+    </script>
+</body>
+
+</html>
